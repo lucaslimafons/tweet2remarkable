@@ -1,0 +1,5 @@
+# Refuse package versions published less than 14 days ago (minutes).
+# Cheap protection against freshly compromised releases.
+minimumReleaseAge: 20160
+allowBuilds:
+  esbuild: true
