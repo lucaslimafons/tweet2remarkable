@@ -24,6 +24,7 @@ describe("helpers", () => {
   it("normalizes folders", () => {
     expect(normalizeFolder("Inbox/")).toBe("/Inbox");
     expect(normalizeFolder("/")).toBe("/");
+    expect(normalizeFolder("//Tweet2remarkable//sub/")).toBe("/Tweet2remarkable/sub");
   });
 
   it("sanitizes titles for the reMarkable", () => {
