@@ -1,6 +1,6 @@
 import type { Update, UserFromGetMe } from "grammy/types";
 import { describe, expect, it } from "vitest";
-import { createBot } from "../src/bot.ts";
+import { createBot, formatResult } from "../src/bot.ts";
 import type { ItemResult } from "../src/pipeline.ts";
 
 const OWNER = 111;
@@ -30,7 +30,7 @@ function setup(results: Record<string, ItemResult> = {}) {
       folder: "/Inbox",
       processUrl: async (url) => {
         processed.push(url);
-        return results[url] ?? { url, ok: true, fileName: "doc.pdf" };
+        return results[url] ?? { url, sent: ["doc.pdf"], failed: [] };
       },
     },
     { botInfo },
@@ -74,12 +74,20 @@ describe("bot", () => {
     const b = "https://example.com/page";
     const text = `${a} and ${b}`;
     const { bot, processed, replies } = setup({
-      [a]: { url: a, ok: true, fileName: "1.pdf" },
-      [b]: { url: b, ok: false, error: "Not a PDF (text/html)." },
+      [a]: { url: a, sent: ["1.pdf"], failed: [] },
+      [b]: { url: b, sent: [], failed: [{ what: b, error: "Not a PDF (text/html)." }] },
     });
     await bot.handleUpdate(message(OWNER, text, [urlEntity(text, a), urlEntity(text, b)]));
     expect(processed).toEqual([a, b]);
     expect(replies()).toEqual(["Sent: 1.pdf → /Inbox", `Failed: ${b}\nNot a PDF (text/html).`]);
+  });
+
+  it("lists every file a link produced, plus partial failures", () => {
+    const text = formatResult(
+      { url: "u", sent: ["Agent Harness.epub", "2610.30755v1.pdf"], failed: [{ what: "https://x/a.pdf", error: "HTTP 403" }] },
+      "/Inbox",
+    );
+    expect(text).toBe("Sent to /Inbox:\n• Agent Harness.epub\n• 2610.30755v1.pdf\nFailed: https://x/a.pdf\nHTTP 403");
   });
 
   it("says so when there is no link", async () => {

@@ -5,12 +5,14 @@ import { loadDotEnv } from "./env.ts";
 import { errorMessage, log, registerSecret } from "./log.ts";
 import { processUrl } from "./pipeline.ts";
 import { createRmapi } from "./remarkable/rmapi.ts";
+import { createFxTwitterResolver } from "./resolve/x.ts";
 
 loadDotEnv();
 const config = loadConfig();
 registerSecret(config.telegramToken);
 
 const rmapi = createRmapi({ bin: config.rmapiBin, configPath: config.rmapiConfig });
+const x = createFxTwitterResolver();
 
 // Validate the reMarkable side before accepting any message: binary present, paired, folder exists.
 try {
@@ -25,7 +27,7 @@ const bot = createBot(config.telegramToken, {
   allowedChatId: config.allowedChatId,
   folder: config.remarkableFolder,
   processUrl: (url) =>
-    processUrl(url, { rmapi, folder: config.remarkableFolder, maxDownloadBytes: config.maxDownloadBytes }),
+    processUrl(url, { rmapi, x, folder: config.remarkableFolder, maxDownloadBytes: config.maxDownloadBytes }),
 });
 
 bot.catch(({ error }) => {
