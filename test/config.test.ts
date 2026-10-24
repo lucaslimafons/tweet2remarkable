@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { loadConfig, normalizeFolder } from "../src/config.ts";
+import { sanitizeTitle } from "../src/filename.ts";
+
+describe("loadConfig", () => {
+  it("refuses to start without ALLOWED_CHAT_ID", () => {
+    expect(() => loadConfig({ TELEGRAM_BOT_TOKEN: "t" })).toThrow("ALLOWED_CHAT_ID");
+  });
+
+  it("rejects a non-numeric chat id", () => {
+    expect(() => loadConfig({ TELEGRAM_BOT_TOKEN: "t", ALLOWED_CHAT_ID: "@me" })).toThrow("integer");
+  });
+
+  it("applies defaults", () => {
+    expect(loadConfig({ TELEGRAM_BOT_TOKEN: "t", ALLOWED_CHAT_ID: "-100123" })).toMatchObject({
+      allowedChatId: -100123,
+      remarkableFolder: "/Inbox",
+      rmapiBin: "rmapi",
+    });
+  });
+});
+
+describe("helpers", () => {
+  it("normalizes folders", () => {
+    expect(normalizeFolder("Inbox/")).toBe("/Inbox");
+    expect(normalizeFolder("/")).toBe("/");
+  });
+
+  it("sanitizes titles for the reMarkable", () => {
+    expect(sanitizeTitle('  How to: "Agents"/Harness?\n')).toBe("How to- -Agents--Harness-");
+    expect(sanitizeTitle("...")).toBe("Untitled");
+    expect(sanitizeTitle("a".repeat(300))).toHaveLength(120);
+  });
+});
