@@ -27,7 +27,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 export function normalizeFolder(folder: string): string {
-  const trimmed = folder.trim().replace(/\/+$/, "");
+  const trimmed = folder.trim().replace(/\/{2,}/g, "/").replace(/\/+$/, "");
   return trimmed.startsWith("/") ? trimmed || "/" : `/${trimmed}`;
 }
 

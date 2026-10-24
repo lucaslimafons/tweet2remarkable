@@ -10,6 +10,7 @@
     "start": "tsx src/index.ts",
     "send": "tsx src/cli.ts",
     "rmapi:install": "sh scripts/install-rmapi.sh",
+    "rmapi:pair": "mkdir -p .secrets && RMAPI_CONFIG=${RMAPI_CONFIG:-./.secrets/rmapi.conf} ./bin/rmapi ls /",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
