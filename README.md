@@ -1,21 +1,70 @@
 # tweet2remarkable
 
-A personal Telegram bot: share a link (or, soon, a post from X) to the bot from your phone's share sheet and it
+A personal Telegram bot: share a post from X or a link to a PDF to the bot from your phone's share sheet, and it
 lands on your reMarkable at the next sync. Single user by design.
 
-**Status: phase 1.** Direct PDF links (arXiv abstract links are rewritten to the PDF). X posts, HTML articles → EPUB
-and files sent to the bot come next.
+**Status: phase 2.** Direct PDF links and X posts (including X Articles). HTML articles → EPUB and files sent
+straight to the bot come next.
 
 ## How it works
 
-```
-Telegram (long polling) → owner-only filter → links from message entities
-  → download (redirects, 50 MB cap, %PDF- check, timeouts) → rmapi put → reply per link
+```mermaid
+flowchart TD
+    share["Share from your phone<br/>(X post or PDF link)"] --> bot["Telegram bot<br/>(long polling)"]
+    bot --> owner{"From ALLOWED_CHAT_ID?"}
+    owner -- no --> ignore["Ignored silently"]
+    owner -- yes --> links["Links from the message"]
+    links --> isX{"Link to an X post?"}
+
+    isX -- yes --> fx["fxtwitter API<br/>text, images, quoted post,<br/>X Article, expanded links"]
+    fx --> postLinks["Each link in the post"]
+    postLinks --> download
+    fx --> wantEpub{"Has an X Article,<br/>or no PDF was found?"}
+    wantEpub -- yes --> epub["Build EPUB<br/>post + images + article"]
+    epub --> upload
+
+    isX -- no --> download["Download<br/>(arXiv abs → PDF, 50 MB cap,<br/>timeouts, %PDF- check)"]
+    download --> isPdf{"Is it a PDF?"}
+    isPdf -- yes --> upload["rmapi put<br/>→ reMarkable cloud"]
+    isPdf -- no --> reply
+    upload --> reply["Reply in the chat<br/>Sent / Failed, per item"]
 ```
 
-Uploads go through [rmapi](https://github.com/ddvk/rmapi) (the maintained `ddvk` fork), pinned to a fixed release and
-run with `-ni`, so it fails instead of hanging when it isn't paired. There is no official reMarkable API; rmapi is
-reverse-engineered and can break, and upload errors are always reported in the chat.
+### What a share turns into
+
+| You share | You get on the reMarkable |
+|---|---|
+| A link to a PDF (or an arXiv `/abs/` page) | That PDF |
+| An X post linking to a PDF / arXiv paper | Just the PDF |
+| An X post with an X Article (its own or a quoted one) | One EPUB: the post, its images, then the full article |
+| An X post without a PDF or article (e.g. a long post) | One EPUB of the post: text, images, quoted post, list of links |
+| Anything else | A clear "Failed: …" reply in the chat, never silence |
+
+EPUB is used for posts and articles because it reflows on e-ink; PDFs are uploaded untouched. Generated EPUBs pass
+[EPUBCheck](https://github.com/w3c/epubcheck) with no errors or warnings.
+
+### Pieces
+
+```mermaid
+flowchart LR
+    subgraph src
+        bot["bot.ts<br/>grammY, owner filter, replies"] --> pipeline["pipeline.ts<br/>link → files"]
+        pipeline --> resolve["resolve/<br/>url.ts · download.ts · x.ts"]
+        pipeline --> convert["convert/<br/>richtext · draft · post · epub"]
+        pipeline --> rm["remarkable/rmapi.ts"]
+    end
+    resolve -- "X posts" --> fxtwitter[("api.fxtwitter.com")]
+    rm -- "child process" --> rmapi[["rmapi binary<br/>(ddvk, pinned)"]] --> cloud[("reMarkable cloud")]
+```
+
+- **X posts** are read through [fxtwitter](https://github.com/FxEmbed/FxEmbed) (free, no account), behind an
+  `XResolver` interface so it can be swapped for the official X API if it ever breaks.
+  X Articles arrive as Draft.js content and are rendered to XHTML with their images. See
+  [docs/research.md](docs/research.md) for what the API returns.
+- **Uploads** go through [rmapi](https://github.com/ddvk/rmapi) (the maintained `ddvk` fork), pinned to a fixed,
+  checksum-verified release and run with `-ni` so it fails instead of hanging when it isn't paired. There is no
+  official reMarkable API; rmapi is reverse-engineered and can break, so upload errors are always reported in the
+  chat.
 
 ## Setup (macOS or Linux)
 
@@ -27,9 +76,11 @@ pnpm rmapi:install        # pinned rmapi → ./bin/rmapi (checksum-verified)
 cp .env.example .env
 ```
 
-1. **Telegram bot:** create one with [@BotFather](https://t.me/BotFather) and put the token in `TELEGRAM_BOT_TOKEN`.
+1. **Telegram bot:** create one with [@BotFather](https://t.me/BotFather) (`/newbot`) and put the token in
+   `TELEGRAM_BOT_TOKEN`. Treat it like a password.
 2. **Your chat id:** message [@userinfobot](https://t.me/userinfobot) and put your numeric id in `ALLOWED_CHAT_ID`.
    The bot refuses to start without it: anyone can find a bot's @, and this one writes to your tablet.
+   Then open your bot and press **Start** once.
 3. **Pair rmapi:** run `pnpm rmapi:pair`, open <https://my.remarkable.com/device/browser/connect>, paste the
    8-character code. The token is saved to `RMAPI_CONFIG` (default `./.secrets/rmapi.conf`). **That file is a
    secret: it grants access to your reMarkable cloud.** It is git-ignored; never commit it.
@@ -38,11 +89,12 @@ cp .env.example .env
 
 ```sh
 pnpm dev                                   # polling bot with reload
-pnpm send https://arxiv.org/abs/2610.30755 # upload one link without Telegram
+pnpm send https://x.com/user/status/123    # send one link without Telegram
 pnpm test
 ```
 
 On start the bot checks that rmapi runs, is paired and that the destination folder exists, then starts polling.
+It only runs while the process is up; hosting it 24/7 is a later phase.
 
 ## Configuration
 
@@ -50,7 +102,7 @@ On start the bot checks that rmapi runs, is paired and that the destination fold
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | required | From @BotFather |
 | `ALLOWED_CHAT_ID` | required | Only this chat is served; others are ignored silently |
-| `REMARKABLE_FOLDER` | `/Inbox` | Created if missing |
+| `REMARKABLE_FOLDER` | `/Inbox` | Created if missing, e.g. `/Tweet2remarkable` |
 | `RMAPI_CONFIG` | rmapi's default | Path to the rmapi auth file |
 | `RMAPI_BIN` | `rmapi` | Path to the binary (`./bin/rmapi` after `rmapi:install`) |
 | `MAX_DOWNLOAD_MB` | `50` | Larger files are refused |
@@ -60,6 +112,7 @@ On start the bot checks that rmapi runs, is paired and that the destination fold
 - Same-name documents aren't overwritten (that would wipe annotations); the upload gets a date suffix instead.
 - rmapi only stores a long-lived device token in its config and derives a fresh user token on each run, so a
   read-only copy of the file (e.g. a mounted secret) works as long as `RMAPI_CONFIG` points to a writable copy.
+- Threads aren't unrolled yet: fxtwitter only links a post to its parent.
 - Without a Connect subscription, files not opened in 50 days leave the cloud (they stay on the tablet).
 
 ## License

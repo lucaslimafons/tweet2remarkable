@@ -24,6 +24,13 @@ Checked against the three real example posts saved in `test/fixtures/fxtwitter/`
     `LINK` (`data.url`), `MEDIA` (`data.mediaItems[].mediaId` → `media_entities[].media_info.original_img_url`),
     `DIVIDER`, `MARKDOWN` (`data.markdown`, fenced code).
   - That's everything needed to render the article (with images) into an EPUB without scraping x.com.
+- **Sharing the article's own post** (`2088611136027361368`): the article is at `tweet.article` and the post text
+  is just the `x.com/i/article/…` link.
+- **Offsets:** `raw_text.facets[].indices` are passed through from X: **code points** for long ("note") posts,
+  **UTF-16 units** for regular posts (per fxtwitter's `twitter-text-indices.ts`). Draft.js ranges in articles are
+  code points. Both are converted to UTF-16 before rendering.
+- `bold`/`italic`/`url` facet indices are accurate; `media` facet indices are stale (they point at `pic.x.com`
+  links fxtwitter already removed from the text) and are ignored.
 - **Threads:** there is no thread/conversation field, only `replying_to_status` (the parent). None of the examples
   is a thread; still unverified.
 - Quoted posts are nested full objects (`tweet.quote`).
