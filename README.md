@@ -1,5 +1,9 @@
 # tweet2remarkable
 
+[![CI](https://github.com/lucaslimafons/tweet2remarkable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lucaslimafons/tweet2remarkable/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/lucaslimafons/tweet2remarkable)](LICENSE)
+[![Node 24+](https://img.shields.io/badge/node-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+
 A personal Telegram bot: share a post from X, a web article, a link to a PDF, or a PDF/EPUB file to the bot from
 your phone's share sheet, and it lands on your reMarkable at the next sync. Single user by design.
 
