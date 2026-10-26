@@ -124,3 +124,31 @@ function describeFetchError(err: unknown, timeoutMs: number): string {
 function formatMb(bytes: number): string {
   return `${Math.round((bytes / 1024 / 1024) * 10) / 10} MB`;
 }
+
+/** Downloads an image for embedding. The type comes from the file's magic bytes, not the header. */
+export async function fetchImage(
+  url: string,
+  { maxBytes = 15 * 1024 * 1024, timeoutMs = 20_000 } = {},
+): Promise<{ data: Uint8Array; mediaType: string }> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { "user-agent": USER_AGENT } });
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new DownloadError(`HTTP ${res.status}`);
+  }
+  if (Number(res.headers.get("content-length")) > maxBytes) {
+    await res.body?.cancel();
+    throw new DownloadError("image too large");
+  }
+  const data = new Uint8Array(await res.arrayBuffer());
+  if (data.length > maxBytes) throw new DownloadError("image too large");
+  const mediaType = sniffImageType(data);
+  if (!mediaType) throw new DownloadError("unsupported image type");
+  return { data, mediaType };
+}
+
+export function sniffImageType(data: Uint8Array): string | undefined {
+  if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return "image/jpeg";
+  if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47) return "image/png";
+  if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) return "image/gif";
+  return undefined;
+}

@@ -9,7 +9,7 @@ export interface BotDeps {
 }
 
 const HELP =
-  "Share a link to a PDF (e.g. an arXiv paper) and I'll send it to your reMarkable.";
+  "Share a post from X or a link to a PDF (e.g. an arXiv paper) and I'll send it to your reMarkable.";
 
 export function createBot(token: string, deps: BotDeps, config?: BotConfig<Context>): Bot {
   const bot = new Bot(token, config);
@@ -43,5 +43,9 @@ export function createBot(token: string, deps: BotDeps, config?: BotConfig<Conte
 }
 
 export function formatResult(result: ItemResult, folder: string): string {
-  return result.ok ? `Sent: ${result.fileName} → ${folder}` : `Failed: ${result.url}\n${result.error}`;
+  const lines: string[] = [];
+  if (result.sent.length === 1) lines.push(`Sent: ${result.sent[0]} → ${folder}`);
+  else if (result.sent.length > 1) lines.push(`Sent to ${folder}:`, ...result.sent.map((f) => `• ${f}`));
+  for (const f of result.failed) lines.push(`Failed: ${f.what}\n${f.error}`);
+  return lines.join("\n") || `Nothing to send from ${result.url}`;
 }
