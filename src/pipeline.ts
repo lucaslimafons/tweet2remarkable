@@ -1,13 +1,13 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { articleDocument, extractArticle, type WebArticle } from "./convert/article.ts";
 import { buildEpub, type EpubDocument } from "./convert/epub.ts";
 import { postDocument } from "./convert/post.ts";
 import { sanitizeTitle } from "./filename.ts";
 import { errorMessage } from "./log.ts";
 import type { Rmapi } from "./remarkable/rmapi.ts";
-import { fetchDocument, fetchImage, type Fetched } from "./resolve/download.ts";
+import { fetchDocument, fetchImage, sniffDocumentType, type Fetched } from "./resolve/download.ts";
 import { normalizeUrl, xStatusId } from "./resolve/url.ts";
 import type { XResolver } from "./resolve/x.ts";
 
@@ -29,6 +29,56 @@ export interface ItemResult {
 
 /** Web pages linked from one post that get appended to its EPUB. */
 const MAX_WEB_ARTICLES_PER_POST = 3;
+
+/** The Bot API's getFile only serves files up to 20 MB. */
+export const MAX_BOT_FILE_BYTES = 20 * 1024 * 1024;
+
+/** A file sent to the bot. `download` writes it to a local path. */
+export interface IncomingFile {
+  name: string;
+  size?: number;
+  download(path: string): Promise<void>;
+}
+
+/** A PDF or EPUB sent as a file → uploaded unchanged. Never throws. */
+export async function processFile(file: IncomingFile, deps: PipelineDeps): Promise<ItemResult> {
+  const result: ItemResult = { url: file.name, sent: [], failed: [] };
+  const fail = (error: string) => (result.failed.push({ what: file.name, error }), result);
+
+  if (file.size && file.size > MAX_BOT_FILE_BYTES) {
+    const mb = Math.round((file.size / 1024 / 1024) * 10) / 10;
+    return fail(`The file is ${mb} MB; Telegram only lets bots download files up to 20 MB. Send a link to it instead.`);
+  }
+  const ext = extname(file.name).toLowerCase();
+  if (ext && ext !== ".pdf" && ext !== ".epub") return fail("Only PDF and EPUB files are supported.");
+
+  const dir = await mkdtemp(join(tmpdir(), "t2rm-"));
+  try {
+    const incoming = join(dir, "incoming");
+    await file.download(incoming);
+    // Trust the bytes, not the name.
+    const type = sniffDocumentType(await readHead(incoming));
+    if (!type) return fail("This isn't a PDF or EPUB file.");
+    const path = join(dir, `${sanitizeTitle(basename(file.name, extname(file.name)))}.${type}`);
+    await rename(incoming, path);
+    await upload(path, type, file.name, deps, result);
+  } catch (err) {
+    fail(errorMessage(err));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  return result;
+}
+
+async function readHead(path: string): Promise<Uint8Array> {
+  const handle = await open(path, "r");
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(1024), 0, 1024, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
 
 /** One shared link → documents on the reMarkable. Never throws: failures come back in the result. */
 export async function processUrl(url: string, deps: PipelineDeps): Promise<ItemResult> {

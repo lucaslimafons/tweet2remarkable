@@ -3,7 +3,22 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { fetchDocument } from "../src/resolve/download.ts";
+import { existsSync } from "node:fs";
+import { buildEpub } from "../src/convert/epub.ts";
+import { downloadTo, fetchDocument, sniffDocumentType } from "../src/resolve/download.ts";
+
+describe("sniffDocumentType", () => {
+  it("recognizes PDFs and real EPUBs, nothing else", async () => {
+    const epub = await buildEpub(
+      { title: "T", author: "A", lang: "en", chapters: [{ title: "C", html: "<p>x</p>" }] },
+      { fetchImage: () => Promise.reject(new Error("none")) },
+    );
+    expect(sniffDocumentType(Buffer.from("%PDF-1.4"))).toBe("pdf");
+    expect(sniffDocumentType(epub)).toBe("epub");
+    expect(sniffDocumentType(Buffer.from("PK\u0003\u0004 a plain zip"))).toBeUndefined();
+    expect(sniffDocumentType(Buffer.from("<html>"))).toBeUndefined();
+  });
+});
 
 let server: Server;
 let base: string;
@@ -123,6 +138,18 @@ describe("fetchDocument", () => {
 
   it("times out a body that never finishes", async () => {
     await expect(fetchDocument(`${base}/slow.pdf`, { ...opts(), timeoutMs: 300 })).rejects.toThrow("timed out after 0.3s");
+  });
+
+  it("downloadTo streams a file and enforces the cap without naming the URL", async () => {
+    const path = join(dir, "out");
+    await downloadTo(`${base}/stream.pdf`, path, { maxBytes: 1e6 });
+    expect((await readFile(path)).subarray(0, 8)).toEqual(PDF.subarray(0, 8));
+    const err = await downloadTo(`${base}/stream.pdf`, join(dir, "small"), { maxBytes: 1024 }).catch((e) => e);
+    expect(err.message).toBe("file is over the 0 MB limit");
+    expect(existsSync(join(dir, "small"))).toBe(false);
+    expect((await downloadTo(`${base}/missing`, join(dir, "x"), { maxBytes: 1e6 }).catch((e) => e)).message).toBe(
+      "download failed (HTTP 404)",
+    );
   });
 
   it("reports HTTP errors", async () => {
