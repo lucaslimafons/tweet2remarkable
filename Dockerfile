@@ -2,7 +2,7 @@
 # Runs the bot: Telegram long polling, no ports exposed. Configure with env vars (see README).
 
 # node:24.22.1-bookworm-slim, pinned by digest (multi-arch index).
-FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS base
+FROM node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS base
 WORKDIR /app
 
 # Production dependencies only. pnpm comes from package.json's packageManager via corepack.
