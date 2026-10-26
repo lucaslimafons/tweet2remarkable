@@ -1,0 +1,13 @@
+# Secrets must never end up in the image.
+.env
+.env.*
+.secrets/
+*.conf
+
+node_modules/
+bin/
+preview/
+.git/
+.claude/
+test/
+docs/

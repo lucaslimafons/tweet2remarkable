@@ -18,13 +18,14 @@ export interface RmapiOptions {
 }
 
 export class RmapiError extends Error {
-  constructor(
-    message: string,
-    readonly output: string,
-    readonly exitCode: number | null,
-  ) {
+  readonly output: string;
+  readonly exitCode: number | null;
+
+  constructor(message: string, output: string, exitCode: number | null) {
     super(message);
     this.name = "RmapiError";
+    this.output = output;
+    this.exitCode = exitCode;
   }
 }
 
