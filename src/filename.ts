@@ -8,8 +8,10 @@ export function sanitizeTitle(title: string): string {
     .replace(/[\/\\:*?"<>|]/g, "-")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/^\.+/, "");
-  return (clean.slice(0, MAX_LENGTH).trim() || "Untitled");
+    // No leading dots (hidden files) and no trailing ones ("…this year." would become "year..epub").
+    .replace(/^\.+/, "")
+    .replace(/[.\s]+$/, "");
+  return clean.slice(0, MAX_LENGTH).trim() || "Untitled";
 }
 
 export function dateSuffix(now = new Date()): string {
