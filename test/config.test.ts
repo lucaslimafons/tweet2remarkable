@@ -30,6 +30,8 @@ describe("helpers", () => {
   it("sanitizes titles for the reMarkable", () => {
     expect(sanitizeTitle('  How to: "Agents"/Harness?\n')).toBe("How to- -Agents--Harness-");
     expect(sanitizeTitle("...")).toBe("Untitled");
+    expect(sanitizeTitle("The most useful paper this year.")).toBe("The most useful paper this year");
+    expect(sanitizeTitle("Cut at a word…")).toBe("Cut at a word…");
     expect(sanitizeTitle("a".repeat(300))).toHaveLength(120);
   });
 });

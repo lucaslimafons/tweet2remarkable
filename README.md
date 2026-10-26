@@ -6,6 +6,17 @@ your phone's share sheet, and it lands on your reMarkable at the next sync. Sing
 **Status:** PDF links, X posts (including X Articles), web articles, and PDF/EPUB files sent to the bot; Docker
 image for 24/7 hosting. Commands (`/folder`) and thread unrolling come next.
 
+<table>
+  <tr>
+    <td width="32%"><img src="docs/images/telegram-chat.png" alt="Telegram chat: an X post and an arXiv link shared to the bot, each answered with 'Sent: … → /Tweet2remarkable'"></td>
+    <td><img src="docs/images/remarkable-folder.png" alt="The reMarkable app's Tweet2remarkable folder with EPUBs of X posts and articles next to arXiv PDFs"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Share to the bot; it answers per item</sub></td>
+    <td align="center"><sub>Posts and articles arrive as EPUBs, papers as PDFs</sub></td>
+  </tr>
+</table>
+
 ## How it works
 
 ```mermaid
@@ -82,6 +93,17 @@ flowchart LR
   checksum-verified release and run with `-ni` so it fails instead of hanging when it isn't paired. There is no
   official reMarkable API; rmapi is reverse-engineered and can break, so upload errors are always reported in the
   chat.
+
+## Run your own
+
+Every instance is fully separate: you create your own Telegram bot, use your own chat id and pair rmapi with your
+own reMarkable account. Nothing is shared with this repository or with anyone else's bot.
+
+- **Just run it** (on your machine, a Pi, a VPS): `git clone` this repository and follow [Setup](#setup-macos-or-linux).
+- **Deploy it from GitHub** (e.g. Northflank building on every push): **fork** it, since the host needs a
+  repository it can watch. Use GitHub's *Sync fork* button to pull in updates.
+
+Your fork can't change this repository; improvements come back as pull requests.
 
 ## Setup (macOS or Linux)
 
