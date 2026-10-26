@@ -13,7 +13,7 @@ image for 24/7 hosting. Commands (`/folder`) and thread unrolling come next.
 <p align="center">
   <img src="docs/images/remarkable-tablet.jpg" width="420" alt="A reMarkable tablet showing the first page of the arXiv paper 'Is Complex Agentic Memory Always Needed? Naive RAG Is Stronger Than We Thought', sent from an X post">
   <br>
-  <sub>A paper linked from an X post, shared to the bot from a phone, on the tablet a few seconds later</sub>
+  <sub>A paper linked from an X post, shared to the bot from a phone, on the tablet after its next sync</sub>
 </p>
 
 <table>
