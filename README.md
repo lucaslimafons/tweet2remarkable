@@ -12,11 +12,11 @@ image for 24/7 hosting. Commands (`/folder`) and thread unrolling come next.
 
 <table>
   <tr>
-    <td width="32%"><img src="docs/images/telegram-chat.png" alt="Telegram chat: an X post and an arXiv link shared to the bot, each answered with 'Sent: … → /Tweet2remarkable'"></td>
+    <td width="32%"><img src="docs/images/telegram-chat.png" alt="Telegram chat: an X post and arXiv links shared to the bot, each answered with 'Sent: … → /Tweet2remarkable'; a paper sent twice gets a dated name instead of overwriting the first"></td>
     <td><img src="docs/images/remarkable-folder.png" alt="The reMarkable app's Tweet2remarkable folder with EPUBs of X posts and articles next to arXiv PDFs"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Share to the bot; it answers per item</sub></td>
+    <td align="center"><sub>Share to the bot; it answers per item (a re-sent paper gets a dated copy, never an overwrite)</sub></td>
     <td align="center"><sub>Posts and articles arrive as EPUBs, papers as PDFs</sub></td>
   </tr>
 </table>
