@@ -49,6 +49,19 @@ From the v0.0.35 source and the real binary:
   secret copied to a writable path is fine.
 - Release checksums match GitHub's published asset digests (pinned in `scripts/install-rmapi.sh`).
 
+## Web articles (phase 3, 2026-10-26)
+
+Checked with `pnpm preview` against Paul Graham, Anthropic, Joel on Software, Dan Luu and the dair.ai page from the
+@omarsar0 post; all EPUBs pass EPUBCheck 5.4.0 with 0 errors / 0 warnings.
+
+- **Next.js image proxy** (`/_next/image?url=…`, e.g. anthropic.com) returns WebP even with
+  `Accept: image/png,image/jpeg` (it sends `Vary: Accept` but ignores it). The sanitizer unwraps the `url` param to
+  the original JPEG/PNG. WebP is allowed by EPUB 3.3 but not embedded, since reMarkable support is unconfirmed.
+- Readability returns *something* for almost any page, so a result under 500 characters of text (or under 1000 when
+  `isProbablyReaderable` says no) is treated as "no article" — paywalls, login walls and JS-only app shells
+  (e.g. an x.com profile) fail with a clear message instead of an empty EPUB.
+- Some sites expose a junk byline (Joel on Software: "About the author."); it only affects the meta line.
+
 ## Hosting (for later)
 
 Northflank Sandbox fits (always on, no sleep, Dockerfile deploys, secret files, nf-compute-20 = 0.2 vCPU /
