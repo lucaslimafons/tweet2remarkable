@@ -1,32 +1,35 @@
 # tweet2remarkable
 
-A personal Telegram bot: share a post from X or a link to a PDF to the bot from your phone's share sheet, and it
-lands on your reMarkable at the next sync. Single user by design.
+A personal Telegram bot: share a post from X, a web article or a link to a PDF to the bot from your phone's share
+sheet, and it lands on your reMarkable at the next sync. Single user by design.
 
-**Status: phase 2.** Direct PDF links and X posts (including X Articles). HTML articles → EPUB and files sent
-straight to the bot come next.
+**Status: phase 3.** PDF links, X posts (including X Articles) and web articles. Files sent straight to the bot
+come next.
 
 ## How it works
 
 ```mermaid
 flowchart TD
-    share["Share from your phone<br/>(X post or PDF link)"] --> bot["Telegram bot<br/>(long polling)"]
+    share["Share from your phone<br/>(X post, article or PDF link)"] --> bot["Telegram bot<br/>(long polling)"]
     bot --> owner{"From ALLOWED_CHAT_ID?"}
     owner -- no --> ignore["Ignored silently"]
     owner -- yes --> links["Links from the message"]
     links --> isX{"Link to an X post?"}
 
     isX -- yes --> fx["fxtwitter API<br/>text, images, quoted post,<br/>X Article, expanded links"]
-    fx --> postLinks["Each link in the post"]
-    postLinks --> download
+    fx --> postLinks["Each link in the post:<br/>PDFs are uploaded,<br/>web pages kept for the EPUB"]
     fx --> wantEpub{"Has an X Article,<br/>or no PDF was found?"}
-    wantEpub -- yes --> epub["Build EPUB<br/>post + images + article"]
-    epub --> upload
+    wantEpub -- yes --> postEpub["EPUB: post + images +<br/>X Article + linked articles"]
+    postEpub --> upload
 
-    isX -- no --> download["Download<br/>(arXiv abs → PDF, 50 MB cap,<br/>timeouts, %PDF- check)"]
-    download --> isPdf{"Is it a PDF?"}
-    isPdf -- yes --> upload["rmapi put<br/>→ reMarkable cloud"]
-    isPdf -- no --> reply
+    isX -- no --> download["Download<br/>(arXiv abs → PDF, size caps,<br/>timeouts, charset)"]
+    download --> kind{"What is it?"}
+    kind -- PDF --> upload["rmapi put<br/>→ reMarkable cloud"]
+    kind -- web page --> readability["Readability + sanitizer<br/>→ article XHTML"]
+    readability -- "article found" --> articleEpub["EPUB of the article"]
+    readability -- "paywall / JS-only" --> reply
+    articleEpub --> upload
+    kind -- other --> reply
     upload --> reply["Reply in the chat<br/>Sent / Failed, per item"]
 ```
 
@@ -35,13 +38,21 @@ flowchart TD
 | You share | You get on the reMarkable |
 |---|---|
 | A link to a PDF (or an arXiv `/abs/` page) | That PDF |
+| A link to a web article | One EPUB of the article, with its images, without the site's menus, ads and scripts |
 | An X post linking to a PDF / arXiv paper | Just the PDF |
 | An X post with an X Article (its own or a quoted one) | One EPUB: the post, its images, then the full article |
-| An X post without a PDF or article (e.g. a long post) | One EPUB of the post: text, images, quoted post, list of links |
-| Anything else | A clear "Failed: …" reply in the chat, never silence |
+| An X post linking to web articles | One EPUB: the post, then up to 3 linked articles |
+| An X post with nothing else (e.g. a long post) | One EPUB of the post: text, images, quoted post, list of links |
+| A paywalled or JavaScript-only page, or anything else | A clear "Failed: …" reply in the chat, never silence |
 
 EPUB is used for posts and articles because it reflows on e-ink; PDFs are uploaded untouched. Generated EPUBs pass
-[EPUBCheck](https://github.com/w3c/epubcheck) with no errors or warnings.
+[EPUBCheck](https://github.com/w3c/epubcheck) with no errors or warnings, including real pages from Paul Graham,
+Anthropic, Joel on Software and Dan Luu.
+
+Web pages are parsed with [Readability](https://github.com/mozilla/readability) in jsdom with scripts and
+subresources disabled, then rebuilt from an allowlist of tags and attributes into strict XHTML: links and lazy images
+are made absolute, Next.js image proxies are unwrapped to the original file, and scripts, iframes, forms and event
+handlers never reach the EPUB.
 
 ### Pieces
 
@@ -50,7 +61,7 @@ flowchart LR
     subgraph src
         bot["bot.ts<br/>grammY, owner filter, replies"] --> pipeline["pipeline.ts<br/>link → files"]
         pipeline --> resolve["resolve/<br/>url.ts · download.ts · x.ts"]
-        pipeline --> convert["convert/<br/>richtext · draft · post · epub"]
+        pipeline --> convert["convert/<br/>article · richtext · draft · post · epub"]
         pipeline --> rm["remarkable/rmapi.ts"]
     end
     resolve -- "X posts" --> fxtwitter[("api.fxtwitter.com")]
@@ -90,6 +101,7 @@ cp .env.example .env
 ```sh
 pnpm dev                                   # polling bot with reload
 pnpm send https://x.com/user/status/123    # send one link without Telegram
+pnpm preview <url>...                      # build the files into ./preview without uploading
 pnpm test
 ```
 

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <title>Why Plain RAG Still Wins | Example Engineering Blog</title>
+  <meta property="og:site_name" content="Example Engineering">
+  <script>window.track = () => fetch("https://tracker.example/hit");</script>
+  <style>body { color: red }</style>
+</head>
+<body>
+  <nav><a href="/">Home</a> <a href="/about">About</a> <a href="/subscribe">Subscribe</a></nav>
+  <div class="ad">Buy our course! <a href="https://ads.example/c">Click</a></div>
+  <article>
+    <h1>Why Plain RAG Still Wins</h1>
+    <p class="byline">By <span class="author">Ada Example</span></p>
+    <p>Retrieval-augmented generation keeps coming back. In this post we look at <b>why plain dense retrieval</b> over the
+      raw conversation beats elaborate memory systems on most long-term memory benchmarks, and what that means for agents
+      you build today. The short version is that rewriting history into memory entries loses the details that matter.</p>
+    <h2>The setup</h2>
+    <p>We compared four systems on <a href="/benchmarks#locomo">LoCoMo</a> and LongMemEval. Each system got the same
+      reader model and the same budget. The only difference was how past turns were stored and retrieved. Details are in
+      the <a href="javascript:alert(1)">appendix</a>, which we kept short on purpose.</p>
+    <figure>
+      <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" data-src="/img/results.png" alt="Results chart">
+      <figcaption>Accuracy by system.</figcaption>
+    </figure>
+    <table>
+      <thead><tr><th>System</th><th colspan="2">Score</th></tr></thead>
+      <tbody><tr><td>Raw RAG</td><td>74.5</td><td onclick="steal()">first</td></tr></tbody>
+    </table>
+    <p>Memory layers tend to summarize. Summaries drop the relations and dependency paths that sit behind an answer, so
+      even with complete access to the transformed store, the reader answers less accurately than with the raw evidence.
+      Before adding a memory layer to your agent, run this baseline on your own data.</p>
+    <pre><code>score = retrieve(history, query) |&gt; rerank |&gt; read</code></pre>
+    <iframe src="https://www.youtube.com/embed/xyz"></iframe>
+    <picture><source srcset="/img/diagram.webp" type="image/webp"><img src="/img/diagram.jpg" alt="Diagram"></picture>
+    <p>Thanks for reading. If you liked this, the follow-up covers how reranking changes the picture when the history
+      grows past a few thousand turns, and why chunk size matters more than embedding model choice.</p>
+  </article>
+  <aside class="related">Related: <a href="/other">Other post</a></aside>
+  <form action="/subscribe"><input name="email"><button>Subscribe</button></form>
+  <footer>© Example</footer>
+</body>
+</html>

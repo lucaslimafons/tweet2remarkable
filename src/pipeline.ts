@@ -1,12 +1,13 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildEpub } from "./convert/epub.ts";
+import { articleDocument, extractArticle, type WebArticle } from "./convert/article.ts";
+import { buildEpub, type EpubDocument } from "./convert/epub.ts";
 import { postDocument } from "./convert/post.ts";
 import { sanitizeTitle } from "./filename.ts";
 import { errorMessage } from "./log.ts";
 import type { Rmapi } from "./remarkable/rmapi.ts";
-import { fetchDocument, fetchImage } from "./resolve/download.ts";
+import { fetchDocument, fetchImage, type Fetched } from "./resolve/download.ts";
 import { normalizeUrl, xStatusId } from "./resolve/url.ts";
 import type { XResolver } from "./resolve/x.ts";
 
@@ -26,6 +27,9 @@ export interface ItemResult {
   failed: { what: string; error: string }[];
 }
 
+/** Web pages linked from one post that get appended to its EPUB. */
+const MAX_WEB_ARTICLES_PER_POST = 3;
+
 /** One shared link → documents on the reMarkable. Never throws: failures come back in the result. */
 export async function processUrl(url: string, deps: PipelineDeps): Promise<ItemResult> {
   const result: ItemResult = { url, sent: [], failed: [] };
@@ -33,7 +37,7 @@ export async function processUrl(url: string, deps: PipelineDeps): Promise<ItemR
   try {
     const postId = xStatusId(url);
     if (postId) await sendXPost(postId, dir, deps, result);
-    else await sendLink(url, dir, deps, result, { notPdfIsError: true });
+    else await sendLink(url, dir, deps, result);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -49,39 +53,89 @@ async function sendXPost(id: string, dir: string, deps: PipelineDeps, result: It
     return;
   }
 
-  // Links in the post (and the post it quotes) that point to PDFs go up as PDFs.
-  const links = [...new Set([...post.links, ...(post.quote?.links ?? [])])];
-  for (const link of links) await sendLink(link, dir, deps, result, { notPdfIsError: false });
+  // PDFs linked from the post (or the post it quotes) go up as PDFs; web pages may join the post's EPUB.
+  const pages: { url: string; html: string }[] = [];
+  for (const link of new Set([...post.links, ...(post.quote?.links ?? [])])) {
+    const fetched = await fetchLink(link, dir, deps, result);
+    if (fetched?.kind === "pdf") await upload(fetched.path, "pdf", link, deps, result);
+    else if (fetched?.kind === "html") pages.push({ url: fetched.finalUrl, html: fetched.html });
+  }
 
-  // The post itself becomes an EPUB when there's an article to read, or when nothing else was sent.
-  const hasArticle = !!(post.article ?? post.quote?.article);
-  if (!hasArticle && result.sent.length > 0) return;
+  // The post becomes an EPUB when there's an X Article to read, or when no PDF was sent.
+  const hasXArticle = !!(post.article ?? post.quote?.article);
+  if (!hasXArticle && result.sent.length > 0) return;
+
+  const webArticles: WebArticle[] = [];
+  for (const page of pages.slice(0, MAX_WEB_ARTICLES_PER_POST)) {
+    try {
+      webArticles.push(extractArticle(page.html, page.url));
+    } catch {
+      // Not readable (paywall, app shell…): it stays in the post's list of links.
+    }
+  }
+  await sendEpub(postDocument(post, webArticles), "the post as EPUB", dir, deps, result, { first: true });
+}
+
+async function sendLink(url: string, dir: string, deps: PipelineDeps, result: ItemResult): Promise<void> {
+  const fetched = await fetchLink(url, dir, deps, result);
+  if (!fetched) return;
+  if (fetched.kind === "pdf") return upload(fetched.path, "pdf", url, deps, result);
+  if (fetched.kind === "other") {
+    result.failed.push({ what: url, error: `Not a PDF or a web page (${fetched.contentType}).` });
+    return;
+  }
+  let article: WebArticle;
   try {
-    const doc = postDocument(post);
-    const epub = await buildEpub(doc, { fetchImage: deps.fetchImage ?? ((u) => fetchImage(u)) });
-    const path = join(dir, `${sanitizeTitle(doc.title)}.epub`);
-    await writeFile(path, epub);
-    result.sent.unshift(`${await deps.rmapi.put(path, deps.folder)}.epub`);
+    article = extractArticle(fetched.html, fetched.finalUrl);
   } catch (err) {
-    result.failed.push({ what: "the post as EPUB", error: errorMessage(err) });
+    result.failed.push({ what: url, error: errorMessage(err) });
+    return;
+  }
+  await sendEpub(articleDocument(article), url, dir, deps, result);
+}
+
+async function fetchLink(url: string, dir: string, deps: PipelineDeps, result: ItemResult): Promise<Fetched | undefined> {
+  try {
+    return await (deps.fetch ?? fetchDocument)(normalizeUrl(url), { dir, maxBytes: deps.maxDownloadBytes });
+  } catch (err) {
+    result.failed.push({ what: url, error: errorMessage(err) });
+    return undefined;
   }
 }
 
-async function sendLink(
-  url: string,
+async function sendEpub(
+  doc: EpubDocument,
+  what: string,
   dir: string,
   deps: PipelineDeps,
   result: ItemResult,
-  { notPdfIsError }: { notPdfIsError: boolean },
+  { first = false } = {},
+): Promise<void> {
+  let path: string;
+  try {
+    const epub = await buildEpub(doc, { fetchImage: deps.fetchImage ?? ((u) => fetchImage(u)) });
+    path = join(dir, `${sanitizeTitle(doc.title)}.epub`);
+    await writeFile(path, epub);
+  } catch (err) {
+    result.failed.push({ what, error: `couldn't build the EPUB: ${errorMessage(err)}` });
+    return;
+  }
+  await upload(path, "epub", what, deps, result, { first });
+}
+
+async function upload(
+  path: string,
+  ext: "pdf" | "epub",
+  what: string,
+  deps: PipelineDeps,
+  result: ItemResult,
+  { first = false } = {},
 ): Promise<void> {
   try {
-    const fetched = await (deps.fetch ?? fetchDocument)(normalizeUrl(url), { dir, maxBytes: deps.maxDownloadBytes });
-    if (fetched.kind === "pdf") {
-      result.sent.push(`${await deps.rmapi.put(fetched.path, deps.folder)}.pdf`);
-    } else if (notPdfIsError) {
-      result.failed.push({ what: url, error: `Not a PDF (${fetched.contentType}). Web articles aren't supported yet.` });
-    }
+    const name = `${await deps.rmapi.put(path, deps.folder)}.${ext}`;
+    if (first) result.sent.unshift(name);
+    else result.sent.push(name);
   } catch (err) {
-    result.failed.push({ what: url, error: errorMessage(err) });
+    result.failed.push({ what, error: errorMessage(err) });
   }
 }

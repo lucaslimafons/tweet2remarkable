@@ -25,7 +25,19 @@ beforeAll(async () => {
           .end(PDF);
         break;
       case "/article":
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end("<html></html>");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end("<html>café ☕</html>");
+        break;
+      case "/legacy":
+        // Windows-1252 page that only declares its charset in a <meta> tag.
+        res
+          .writeHead(200, { "content-type": "text/html" })
+          .end(Buffer.concat([Buffer.from('<meta charset="windows-1252"><p>'), Buffer.from([0x93, 0x63, 0x61, 0x66, 0xe9, 0x94]), Buffer.from("</p>")]));
+        break;
+      case "/huge":
+        res.writeHead(200, { "content-type": "text/html" }).end(Buffer.alloc(4096, "a"));
+        break;
+      case "/image.png":
+        res.writeHead(200, { "content-type": "image/png" }).end(PDF);
         break;
       case "/fake.pdf":
         res.writeHead(200, { "content-type": "application/pdf" }).end("<html>login</html>");
@@ -72,11 +84,28 @@ describe("fetchDocument", () => {
     expect(await fetchDocument(`${base}/download`, opts())).toMatchObject({ kind: "pdf", title: "Report- Q3" });
   });
 
-  it("reports HTML without downloading it", async () => {
+  it("reads and decodes HTML pages", async () => {
     expect(await fetchDocument(`${base}/article`, opts())).toEqual({
-      kind: "other",
-      contentType: "text/html",
+      kind: "html",
+      html: "<html>café ☕</html>",
       finalUrl: `${base}/article`,
+    });
+  });
+
+  it("honours a <meta charset> when the header has none", async () => {
+    const result = await fetchDocument(`${base}/legacy`, opts());
+    expect(result.kind === "html" && result.html).toBe('<meta charset="windows-1252"><p>“café”</p>');
+  });
+
+  it("caps the size of HTML pages", async () => {
+    await expect(fetchDocument(`${base}/huge`, { ...opts(), maxHtmlBytes: 1024 })).rejects.toThrow("page is over the 0 MB limit");
+  });
+
+  it("reports other types without downloading them", async () => {
+    expect(await fetchDocument(`${base}/image.png`, opts())).toEqual({
+      kind: "other",
+      contentType: "image/png",
+      finalUrl: `${base}/image.png`,
     });
   });
 

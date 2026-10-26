@@ -6,3 +6,4 @@ bin/rmapi
 .DS_Store
 .claude/
 .secrets/
+preview/

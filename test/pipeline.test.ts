@@ -1,13 +1,17 @@
+import { readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
-import { unzipSync } from "fflate";
+import { basename, extname, join } from "node:path";
+import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { processUrl, type PipelineDeps } from "../src/pipeline.ts";
-import type { Fetched } from "../src/resolve/download.ts";
 import { XResolveError, type XResolver } from "../src/resolve/x.ts";
 import { EXAMPLES, PNG, post } from "./helpers.ts";
 
-function setup(pages: Record<string, Fetched["kind"] | Error> = {}, resolver?: XResolver) {
+/** pdf: a PDF · blog/paywall: that HTML fixture · other: a zip · unlisted: plain text · Error: thrown. */
+type Page = "pdf" | "blog" | "paywall" | "other" | Error;
+const fixtureHtml = (name: string) => readFileSync(join(import.meta.dirname, "fixtures/html", `${name}.html`), "utf8");
+
+function setup(pages: Record<string, Page> = {}, resolver?: XResolver) {
   const uploads: { name: string; ext: string; bytes: Buffer }[] = [];
   const fetched: string[] = [];
   const deps: PipelineDeps = {
@@ -24,14 +28,15 @@ function setup(pages: Record<string, Fetched["kind"] | Error> = {}, resolver?: X
     },
     fetch: async (url, { dir }) => {
       fetched.push(url);
-      const page = pages[url] ?? "other";
+      const page = pages[url];
       if (page instanceof Error) throw page;
       if (page === "pdf") {
         const path = `${dir}/${basename(new URL(url).pathname)}.pdf`;
         await writeFile(path, "%PDF-1.4");
         return { kind: "pdf", path, title: basename(path, ".pdf"), finalUrl: url };
       }
-      return { kind: "other", contentType: "text/html", finalUrl: url };
+      if (page === "blog" || page === "paywall") return { kind: "html", html: fixtureHtml(page), finalUrl: url };
+      return { kind: "other", contentType: page === "other" ? "application/zip" : "text/plain", finalUrl: url };
     },
     fetchImage: async () => ({ data: PNG, mediaType: "image/png" }),
   };
@@ -88,9 +93,45 @@ describe("processUrl with X posts", () => {
 });
 
 describe("processUrl with plain links", () => {
-  it("rejects a web page for now", async () => {
-    const { deps } = setup();
-    const result = await processUrl("https://example.com/post", deps);
-    expect(result.failed[0]!.error).toBe("Not a PDF (text/html). Web articles aren't supported yet.");
+  it("turns a web article into an EPUB named after it", async () => {
+    const { deps, uploads } = setup({ "https://blog.example.com/plain-rag": "blog" });
+    const result = await processUrl("https://blog.example.com/plain-rag", deps);
+    expect(result).toEqual({ url: "https://blog.example.com/plain-rag", sent: ["Why Plain RAG Still Wins.epub"], failed: [] });
+    const chapter = strFromU8(unzipSync(uploads[0]!.bytes)["OEBPS/chapter-1.xhtml"]!);
+    expect(chapter).toContain("<h2>The setup</h2>");
+    expect(chapter).toContain('src="images/img-1.png"');
+  });
+
+  it("explains an unreadable page instead of sending junk", async () => {
+    const { deps, uploads } = setup({ "https://paper.example/story": "paywall" });
+    const result = await processUrl("https://paper.example/story", deps);
+    expect(result.failed).toEqual([
+      { what: "https://paper.example/story", error: "couldn't find an article on this page (paywall, login or JavaScript-only?)" },
+    ]);
+    expect(uploads).toEqual([]);
+  });
+
+  it("rejects other content types", async () => {
+    const { deps } = setup({ "https://example.com/a.zip": "other" });
+    const result = await processUrl("https://example.com/a.zip", deps);
+    expect(result.failed[0]!.error).toBe("Not a PDF or a web page (application/zip).");
+  });
+});
+
+describe("processUrl with X posts linking web articles", () => {
+  it("appends a readable linked page to the post's EPUB and skips unreadable ones", async () => {
+    const shortPost = { ...post(EXAMPLES.ragWithArxivLink), text: "Worth a read https://t.co/a https://t.co/b", spans: [] };
+    shortPost.links = ["https://blog.example.com/plain-rag", "https://paper.example/story"];
+    const { deps, uploads } = setup(
+      { "https://blog.example.com/plain-rag": "blog", "https://paper.example/story": "paywall" },
+      { getPost: async () => shortPost },
+    );
+    const result = await processUrl(xUrl("1"), deps);
+    // Short comment + one readable article: the article names the document.
+    expect(result).toEqual({ url: xUrl("1"), sent: ["Why Plain RAG Still Wins.epub"], failed: [] });
+    const files = unzipSync(uploads[0]!.bytes);
+    expect(strFromU8(files["OEBPS/chapter-1.xhtml"]!)).toContain("Post by @omarsar0");
+    expect(strFromU8(files["OEBPS/chapter-2.xhtml"]!)).toContain("<h1>Why Plain RAG Still Wins</h1>");
+    expect(files["OEBPS/chapter-3.xhtml"]).toBeUndefined();
   });
 });

@@ -1,12 +1,14 @@
 // X post (+ quoted post, + X Article) → an EPUB-ready document.
 import type { XArticle, XPost } from "../resolve/x.ts";
+import { articleChapterHtml, type WebArticle } from "./article.ts";
 import { renderArticle } from "./draft.ts";
 import type { EpubDocument } from "./epub.ts";
 import { escapeXml, renderParagraphs } from "./richtext.ts";
 
 const TITLE_MAX = 90;
 
-export function postDocument(post: XPost): EpubDocument {
+/** `webArticles`: readable pages the post links to, appended after the post (and its X Article). */
+export function postDocument(post: XPost, webArticles: readonly WebArticle[] = []): EpubDocument {
   const article = post.article ?? post.quote?.article;
   const articleAuthor = post.article ? post : post.quote;
   const chapters = [];
@@ -17,9 +19,10 @@ export function postDocument(post: XPost): EpubDocument {
   if (article && articleAuthor) {
     chapters.push({ title: article.title, html: renderArticleChapter(article, articleAuthor, !chapters.length) });
   }
+  for (const web of webArticles) chapters.push({ title: web.title, html: articleChapterHtml(web) });
 
   return {
-    title: documentTitle(post),
+    title: documentTitle(post, webArticles),
     author: article && articleAuthor ? articleAuthor.author.name : post.author.name,
     lang: post.lang && /^[a-z]{2,3}$/.test(post.lang) ? post.lang : "en",
     sourceUrl: post.url,
@@ -27,12 +30,13 @@ export function postDocument(post: XPost): EpubDocument {
   };
 }
 
-export function documentTitle(post: XPost): string {
+export function documentTitle(post: XPost, webArticles: readonly WebArticle[] = []): string {
   if (post.article) return post.article.title;
-  const own = firstLine(post);
-  // A short comment on a quoted article: the article is what's worth reading.
-  if (post.quote?.article && plainText(post).length < 200) return post.quote.article.title;
-  return own || `Post by @${post.author.handle}`;
+  // A short comment on an article (quoted, or the one page it links to): the article is what's worth reading.
+  const shortComment = plainText(post).length < 200;
+  if (post.quote?.article && shortComment) return post.quote.article.title;
+  if (webArticles.length === 1 && shortComment) return webArticles[0]!.title;
+  return firstLine(post) || `Post by @${post.author.handle}`;
 }
 
 function renderPost(post: XPost): string {

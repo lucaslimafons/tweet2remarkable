@@ -9,6 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "send": "tsx src/cli.ts",
+    "preview": "tsx src/preview.ts",
     "rmapi:install": "sh scripts/install-rmapi.sh",
     "rmapi:pair": "mkdir -p .secrets && RMAPI_CONFIG=${RMAPI_CONFIG:-./.secrets/rmapi.conf} ./bin/rmapi ls /",
     "typecheck": "tsc --noEmit",
@@ -16,13 +17,14 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "fflate": "^0.8.3",
-    "grammy": "^1.46.0"
+    "grammy": "^1.46.0",
+    "jsdom": "^30.1.2"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
-    "jsdom": "^30.1.2",
     "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
