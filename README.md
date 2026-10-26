@@ -10,6 +10,12 @@ your phone's share sheet, and it lands on your reMarkable at the next sync. Sing
 **Status:** PDF links, X posts (including X Articles), web articles, and PDF/EPUB files sent to the bot; Docker
 image for 24/7 hosting. Commands (`/folder`) and thread unrolling come next.
 
+<p align="center">
+  <img src="docs/images/remarkable-tablet.jpg" width="420" alt="A reMarkable tablet showing the first page of the arXiv paper 'Is Complex Agentic Memory Always Needed? Naive RAG Is Stronger Than We Thought', sent from an X post">
+  <br>
+  <sub>A paper linked from an X post, shared to the bot from a phone, on the tablet a few seconds later</sub>
+</p>
+
 <table>
   <tr>
     <td width="32%"><img src="docs/images/telegram-chat.png" alt="Telegram chat: an X post and arXiv links shared to the bot, each answered with 'Sent: … → /Tweet2remarkable'; a paper sent twice gets a dated name instead of overwriting the first"></td>
