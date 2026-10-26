@@ -3,8 +3,8 @@
 A personal Telegram bot: share a post from X, a web article, a link to a PDF, or a PDF/EPUB file to the bot from
 your phone's share sheet, and it lands on your reMarkable at the next sync. Single user by design.
 
-**Status: phase 4.** PDF links, X posts (including X Articles), web articles, and PDF/EPUB files sent to the bot.
-Commands (`/pdf`, `/epub`, `/folder`) and a 24/7 deployment come next.
+**Status:** PDF links, X posts (including X Articles), web articles, and PDF/EPUB files sent to the bot; Docker
+image for 24/7 hosting. Commands (`/folder`) and thread unrolling come next.
 
 ## How it works
 
@@ -112,7 +112,36 @@ pnpm test
 ```
 
 On start the bot checks that rmapi runs, is paired and that the destination folder exists, then starts polling.
-It only runs while the process is up; hosting it 24/7 is a later phase.
+It only runs while the process is up; see [Deploy](#deploy-247) to keep it running.
+
+## Deploy (24/7)
+
+The bot is a single long-running process with no inbound ports, so any host that runs a container works. The
+`Dockerfile` builds a small image (Node 24 running the TypeScript directly, plus the pinned rmapi for amd64/arm64)
+that runs as a non-root user.
+
+Pass the rmapi config as a secret, either:
+
+- `RMAPI_CONFIG_B64`: the file's contents in base64 (`base64 < .secrets/rmapi.conf | tr -d '\n'`), or
+- a mounted secret file, with `RMAPI_CONFIG` pointing at it (read-only mounts are fine: it is copied to a private temp
+  file, since rmapi only needs to rewrite its short-lived user token).
+
+Then check the deployment without starting a second poller: `node src/check.ts` (locally: `pnpm check`) verifies the
+Telegram token, the rmapi pairing and the destination folder.
+
+```sh
+docker build -t tweet2remarkable .
+docker run -d --restart unless-stopped \
+  -e TELEGRAM_BOT_TOKEN=… -e ALLOWED_CHAT_ID=… -e REMARKABLE_FOLDER=/Inbox -e RMAPI_CONFIG_B64=… \
+  tweet2remarkable
+```
+
+Only one process may poll a bot at a time: stop `pnpm dev` on your machine once the hosted bot is running, or both
+will get `409 Conflict` from Telegram.
+
+On [Northflank](https://northflank.com) (free Sandbox: always on, no sleeping): create a project, add a *combined
+service* from this repository's `main` branch with the Dockerfile build, no ports, the smallest compute plan, and the
+variables above as secrets. Pushing to `main` redeploys.
 
 ## Configuration
 
@@ -122,6 +151,7 @@ It only runs while the process is up; hosting it 24/7 is a later phase.
 | `ALLOWED_CHAT_ID` | required | Only this chat is served; others are ignored silently |
 | `REMARKABLE_FOLDER` | `/Inbox` | Created if missing, e.g. `/Tweet2remarkable` |
 | `RMAPI_CONFIG` | rmapi's default | Path to the rmapi auth file |
+| `RMAPI_CONFIG_B64` | | The rmapi auth file's contents, base64 (for hosts without secret files) |
 | `RMAPI_BIN` | `rmapi` | Path to the binary (`./bin/rmapi` after `rmapi:install`) |
 | `MAX_DOWNLOAD_MB` | `50` | Larger files are refused |
 
