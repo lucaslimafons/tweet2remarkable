@@ -16,12 +16,6 @@ your phone's share sheet, and it lands on your reMarkable at the next sync. Sing
     <td align="center"><sub>Share to the bot; it answers per item</sub></td>
     <td align="center"><sub>A paper linked from an X post, on the tablet after its next sync</sub></td>
   </tr>
-  <tr>
-    <td colspan="2"><img src="docs/images/remarkable-folder.png" alt="The reMarkable app's Tweet2remarkable folder with EPUBs of X posts and articles next to arXiv PDFs"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><sub>Posts and articles arrive as EPUBs (they reflow on e-ink), papers as PDFs</sub></td>
-  </tr>
 </table>
 
 ## What you get
