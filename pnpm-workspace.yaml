@@ -1,5 +1,12 @@
 # Refuse package versions published less than 14 days ago (minutes).
 # Cheap protection against freshly compromised releases.
 minimumReleaseAge: 20160
+# Security fix younger than the gate above: undici 8.12.2 (2026-10-15) fixes GHSA advisories in the
+# version jsdom pulls in. The override pins that exact version, so the exclusion only admits it.
+# Remove both once jsdom depends on undici >= 8.12.2.
+minimumReleaseAgeExclude:
+  - undici
+overrides:
+  undici: 8.12.2
 allowBuilds:
   esbuild: true
