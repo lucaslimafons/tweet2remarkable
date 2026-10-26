@@ -205,3 +205,45 @@ export function decodeHtml(bytes: Uint8Array, contentType = ""): string {
   }
   return new TextDecoder().decode(bytes);
 }
+
+/**
+ * Streams `url` to `path` with a size cap. Error messages never include the URL: for Telegram files
+ * it contains the bot token.
+ */
+export async function downloadTo(url: string, path: string, { maxBytes, timeoutMs = 120_000 }: { maxBytes: number; timeoutMs?: number }): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { "user-agent": USER_AGENT } });
+  } catch (err) {
+    throw new DownloadError(describeFetchError(err, timeoutMs));
+  }
+  if (!res.ok || !res.body) {
+    await res.body?.cancel();
+    throw new DownloadError(`download failed (HTTP ${res.status})`);
+  }
+  if (Number(res.headers.get("content-length")) > maxBytes) {
+    await res.body.cancel();
+    throw new DownloadError(`file is over the ${formatMb(maxBytes)} limit`);
+  }
+  let seen = 0;
+  const limit = new Transform({
+    transform(chunk: Buffer, _enc, done) {
+      seen += chunk.length;
+      done(seen > maxBytes ? new DownloadError(`file is over the ${formatMb(maxBytes)} limit`) : null, chunk);
+    },
+  });
+  try {
+    await pipeline(Readable.fromWeb(res.body as never), limit, createWriteStream(path));
+  } catch (err) {
+    await rm(path, { force: true });
+    throw err instanceof DownloadError ? err : new DownloadError(describeFetchError(err, timeoutMs));
+  }
+}
+
+/** "pdf" / "epub" from a file's first bytes (EPUB: a zip whose first entry is the `mimetype` file). */
+export function sniffDocumentType(head: Uint8Array): "pdf" | "epub" | undefined {
+  const text = Buffer.from(head.subarray(0, 1024)).toString("latin1");
+  if (text.includes("%PDF-")) return "pdf";
+  if (text.startsWith("PK\u0003\u0004") && text.slice(30, 58) === "mimetypeapplication/epub+zip") return "epub";
+  return undefined;
+}

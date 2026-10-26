@@ -1,19 +1,23 @@
 # tweet2remarkable
 
-A personal Telegram bot: share a post from X, a web article or a link to a PDF to the bot from your phone's share
-sheet, and it lands on your reMarkable at the next sync. Single user by design.
+A personal Telegram bot: share a post from X, a web article, a link to a PDF, or a PDF/EPUB file to the bot from
+your phone's share sheet, and it lands on your reMarkable at the next sync. Single user by design.
 
-**Status: phase 3.** PDF links, X posts (including X Articles) and web articles. Files sent straight to the bot
-come next.
+**Status: phase 4.** PDF links, X posts (including X Articles), web articles, and PDF/EPUB files sent to the bot.
+Commands (`/pdf`, `/epub`, `/folder`) and a 24/7 deployment come next.
 
 ## How it works
 
 ```mermaid
 flowchart TD
-    share["Share from your phone<br/>(X post, article or PDF link)"] --> bot["Telegram bot<br/>(long polling)"]
+    share["Share from your phone<br/>(X post, article, PDF link or file)"] --> bot["Telegram bot<br/>(long polling)"]
     bot --> owner{"From ALLOWED_CHAT_ID?"}
     owner -- no --> ignore["Ignored silently"]
-    owner -- yes --> links["Links from the message"]
+    owner -- yes --> isFile{"A file?"}
+    isFile -- "yes (≤ 20 MB)" --> getFile["getFile → download<br/>check bytes: PDF or EPUB"]
+    getFile --> upload
+    isFile -- "over 20 MB / other type" --> reply
+    isFile -- "no" --> links["Links from the message"]
     links --> isX{"Link to an X post?"}
 
     isX -- yes --> fx["fxtwitter API<br/>text, images, quoted post,<br/>X Article, expanded links"]
@@ -43,6 +47,8 @@ flowchart TD
 | An X post with an X Article (its own or a quoted one) | One EPUB: the post, its images, then the full article |
 | An X post linking to web articles | One EPUB: the post, then up to 3 linked articles |
 | An X post with nothing else (e.g. a long post) | One EPUB of the post: text, images, quoted post, list of links |
+| A PDF or EPUB **file** (up to 20 MB) | That file, unchanged, under its own name |
+| A file over 20 MB, or another file type | A reply explaining why: bots can only download files up to 20 MB |
 | A paywalled or JavaScript-only page, or anything else | A clear "Failed: …" reply in the chat, never silence |
 
 EPUB is used for posts and articles because it reflows on e-ink; PDFs are uploaded untouched. Generated EPUBs pass

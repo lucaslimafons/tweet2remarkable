@@ -3,7 +3,7 @@ import { createBot } from "./bot.ts";
 import { loadConfig } from "./config.ts";
 import { loadDotEnv } from "./env.ts";
 import { errorMessage, log, registerSecret } from "./log.ts";
-import { processUrl } from "./pipeline.ts";
+import { processFile, processUrl } from "./pipeline.ts";
 import { createRmapi } from "./remarkable/rmapi.ts";
 import { createFxTwitterResolver } from "./resolve/x.ts";
 
@@ -23,11 +23,12 @@ try {
   process.exit(1);
 }
 
+const pipelineDeps = { rmapi, x, folder: config.remarkableFolder, maxDownloadBytes: config.maxDownloadBytes };
 const bot = createBot(config.telegramToken, {
   allowedChatId: config.allowedChatId,
   folder: config.remarkableFolder,
-  processUrl: (url) =>
-    processUrl(url, { rmapi, x, folder: config.remarkableFolder, maxDownloadBytes: config.maxDownloadBytes }),
+  processUrl: (url) => processUrl(url, pipelineDeps),
+  processFile: (file) => processFile(file, pipelineDeps),
 });
 
 bot.catch(({ error }) => {
