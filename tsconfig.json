@@ -7,6 +7,9 @@
     "types": ["node"],
     "noEmit": true,
     "verbatimModuleSyntax": true,
+    // Production runs the .ts files with Node's built-in type stripping (no build step), which only
+    // supports syntax that can be erased: no enums, namespaces or constructor parameter properties.
+    "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true
   },
   "include": ["src", "test"]

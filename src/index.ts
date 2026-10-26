@@ -1,7 +1,7 @@
 import { GrammyError, HttpError } from "grammy";
 import { createBot } from "./bot.ts";
 import { loadConfig } from "./config.ts";
-import { loadDotEnv } from "./env.ts";
+import { loadDotEnv, prepareRmapiConfig } from "./env.ts";
 import { errorMessage, log, registerSecret } from "./log.ts";
 import { processFile, processUrl } from "./pipeline.ts";
 import { createRmapi } from "./remarkable/rmapi.ts";
@@ -11,7 +11,7 @@ loadDotEnv();
 const config = loadConfig();
 registerSecret(config.telegramToken);
 
-const rmapi = createRmapi({ bin: config.rmapiBin, configPath: config.rmapiConfig });
+const rmapi = createRmapi({ bin: config.rmapiBin, configPath: prepareRmapiConfig() });
 const x = createFxTwitterResolver();
 
 // Validate the reMarkable side before accepting any message: binary present, paired, folder exists.

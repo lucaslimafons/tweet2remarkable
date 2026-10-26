@@ -7,7 +7,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "node src/index.ts",
+    "check": "node src/check.ts",
     "send": "tsx src/cli.ts",
     "preview": "tsx src/preview.ts",
     "rmapi:install": "sh scripts/install-rmapi.sh",
