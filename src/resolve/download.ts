@@ -5,28 +5,36 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { sanitizeTitle } from "../filename.ts";
 
-export const USER_AGENT = "tweet2remarkable/0.1";
+// "compatible" plus a contact URL: honest about being a bot, but not rejected as an unknown client.
+export const USER_AGENT = "Mozilla/5.0 (compatible; tweet2remarkable/0.1; +https://github.com/lucaslimafons/tweet2remarkable)";
 
 export type Fetched =
   | { kind: "pdf"; path: string; title: string; finalUrl: string }
+  | { kind: "html"; html: string; finalUrl: string }
   | { kind: "other"; contentType: string; finalUrl: string };
 
 export interface FetchOptions {
   /** Directory the downloaded file is written to. */
   dir: string;
   maxBytes: number;
+  maxHtmlBytes?: number;
   timeoutMs?: number;
 }
+
+const HTML_TYPES = ["text/html", "application/xhtml+xml"];
 
 export class DownloadError extends Error {
   override name = "DownloadError";
 }
 
 /**
- * Follows redirects and, when the target is a PDF, streams it to `dir`.
- * Anything else is reported back by content type without downloading the body.
+ * Follows redirects. A PDF is streamed to `dir`; an HTML page is read and decoded;
+ * anything else is reported back by content type without downloading the body.
  */
-export async function fetchDocument(url: string, { dir, maxBytes, timeoutMs = 60_000 }: FetchOptions): Promise<Fetched> {
+export async function fetchDocument(
+  url: string,
+  { dir, maxBytes, maxHtmlBytes = 5 * 1024 * 1024, timeoutMs = 60_000 }: FetchOptions,
+): Promise<Fetched> {
   let res: Response;
   try {
     res = await fetch(url, {
@@ -46,8 +54,17 @@ export async function fetchDocument(url: string, { dir, maxBytes, timeoutMs = 60
 
   const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
   if (!isPdfResponse(contentType, finalUrl)) {
-    await res.body?.cancel();
-    return { kind: "other", contentType: contentType.split(";")[0] || "unknown", finalUrl };
+    const mime = contentType.split(";")[0]!.trim();
+    if (!HTML_TYPES.includes(mime)) {
+      await res.body?.cancel();
+      return { kind: "other", contentType: mime || "unknown", finalUrl };
+    }
+    try {
+      const bytes = await readLimited(res, maxHtmlBytes);
+      return { kind: "html", html: decodeHtml(bytes, contentType), finalUrl };
+    } catch (err) {
+      throw err instanceof DownloadError ? err : new DownloadError(describeFetchError(err, timeoutMs));
+    }
   }
 
   const declared = Number(res.headers.get("content-length"));
@@ -130,7 +147,11 @@ export async function fetchImage(
   url: string,
   { maxBytes = 15 * 1024 * 1024, timeoutMs = 20_000 } = {},
 ): Promise<{ data: Uint8Array; mediaType: string }> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { "user-agent": USER_AGENT } });
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+    // Image CDNs (e.g. Next.js /_next/image) negotiate the format: ask for ones EPUB readers handle.
+    headers: { "user-agent": USER_AGENT, accept: "image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1" },
+  });
   if (!res.ok) {
     await res.body?.cancel();
     throw new DownloadError(`HTTP ${res.status}`);
@@ -151,4 +172,36 @@ export function sniffImageType(data: Uint8Array): string | undefined {
   if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47) return "image/png";
   if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) return "image/gif";
   return undefined;
+}
+
+async function readLimited(res: Response, maxBytes: number): Promise<Uint8Array> {
+  if (Number(res.headers.get("content-length")) > maxBytes) {
+    await res.body?.cancel();
+    throw new DownloadError(`page is over the ${formatMb(maxBytes)} limit`);
+  }
+  if (!res.body) return new Uint8Array();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+    total += chunk.length;
+    if (total > maxBytes) throw new DownloadError(`page is over the ${formatMb(maxBytes)} limit`);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+/** Decodes using the header charset, then a <meta charset> in the first KBs, then UTF-8. */
+export function decodeHtml(bytes: Uint8Array, contentType = ""): string {
+  const fromHeader = contentType.match(/charset=["']?([\w-]+)/i)?.[1];
+  const head = Buffer.from(bytes.subarray(0, 4096)).toString("latin1");
+  const fromMeta = head.match(/<meta[^>]+charset=["']?([\w-]+)/i)?.[1];
+  for (const label of [fromHeader, fromMeta]) {
+    if (!label) continue;
+    try {
+      return new TextDecoder(label).decode(bytes);
+    } catch {
+      // Unknown label: try the next source.
+    }
+  }
+  return new TextDecoder().decode(bytes);
 }

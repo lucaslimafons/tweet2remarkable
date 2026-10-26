@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
       fflate:
         specifier: ^0.8.3
         version: 0.8.3
       grammy:
         specifier: ^1.46.0
         version: 1.46.0
+      jsdom:
+        specifier: ^30.1.2
+        version: 30.1.2
     devDependencies:
       '@types/jsdom':
         specifier: ^30.0.0
@@ -21,9 +27,6 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
-      jsdom:
-        specifier: ^30.1.2
-        version: 30.1.2
       tsx:
         specifier: ^4.23.0
         version: 4.23.15
@@ -254,6 +257,10 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
+
+  '@mozilla/readability@0.6.0':
+    resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
+    engines: {node: '>=14.0.0'}
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
@@ -960,6 +967,8 @@ snapshots:
   '@grammyjs/types@5.0.0': {}
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
+
+  '@mozilla/readability@0.6.0': {}
 
   '@oxc-project/types@0.153.0': {}
 
