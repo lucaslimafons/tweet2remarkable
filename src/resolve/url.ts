@@ -40,7 +40,22 @@ export function normalizeUrl(raw: string): string {
     const match = url.pathname.match(/^\/(?:abs|html|pdf)\/(.+?)(?:\.pdf)?\/?$/);
     if (match) return `https://arxiv.org/pdf/${match[1]}`;
   }
+  if (host === "drive.google.com") {
+    const id = url.pathname.match(/^\/file\/d\/([\w-]+)/)?.[1] ?? url.searchParams.get("id");
+    if (id && /^[\w-]+$/.test(id)) return googleDriveDownload(id, url.searchParams.get("resourcekey"));
+  }
   return url.href;
+}
+
+/** Direct download of a Drive file shared with "Anyone with the link" (the /view page is a JS viewer). */
+function googleDriveDownload(id: string, resourceKey: string | null): string {
+  const download = new URL("https://drive.usercontent.google.com/download");
+  download.searchParams.set("id", id);
+  download.searchParams.set("export", "download");
+  // Skips the "can't scan this file for viruses" page Drive shows for large files.
+  download.searchParams.set("confirm", "t");
+  if (resourceKey) download.searchParams.set("resourcekey", resourceKey);
+  return download.href;
 }
 
 const X_HOSTS = new Set(["x.com", "twitter.com", "mobile.twitter.com", "mobile.x.com"]);

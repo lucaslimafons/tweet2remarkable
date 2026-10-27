@@ -24,6 +24,16 @@ describe("normalizeUrl", () => {
     ["https://www.arxiv.org/abs/2610.30755v2", "https://arxiv.org/pdf/2610.30755v2"],
     ["https://arxiv.org/pdf/2610.30755.pdf", "https://arxiv.org/pdf/2610.30755"],
     ["https://arxiv.org/html/2610.30755v1/", "https://arxiv.org/pdf/2610.30755v1"],
+    [
+      "https://drive.google.com/file/d/18f4SUfj-_RqV2FXhnryOkJvzhMiUaHP-/view?usp=sharing",
+      "https://drive.usercontent.google.com/download?id=18f4SUfj-_RqV2FXhnryOkJvzhMiUaHP-&export=download&confirm=t",
+    ],
+    [
+      "https://drive.google.com/open?id=abc_123&resourcekey=0-key",
+      "https://drive.usercontent.google.com/download?id=abc_123&export=download&confirm=t&resourcekey=0-key",
+    ],
+    ["https://drive.google.com/uc?id=abc&export=download", "https://drive.usercontent.google.com/download?id=abc&export=download&confirm=t"],
+    ["https://drive.google.com/drive/folders/abc", "https://drive.google.com/drive/folders/abc"],
     ["https://example.com/x.pdf", "https://example.com/x.pdf"],
   ])("%s → %s", (input, expected) => expect(normalizeUrl(input)).toBe(expected));
 });

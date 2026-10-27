@@ -49,11 +49,15 @@ export async function fetchDocument(
   const finalUrl = res.url || url;
   if (!res.ok) {
     await res.body?.cancel();
-    throw new DownloadError(`HTTP ${res.status} from ${new URL(finalUrl).hostname}`);
+    const host = new URL(finalUrl).hostname;
+    if (host === "drive.usercontent.google.com" && (res.status === 403 || res.status === 404)) {
+      throw new DownloadError(`Google Drive file not found or not shared with "Anyone with the link"`);
+    }
+    throw new DownloadError(`HTTP ${res.status} from ${host}`);
   }
 
   const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
-  if (!isPdfResponse(contentType, finalUrl)) {
+  if (!isPdfResponse(contentType, res.headers.get("content-disposition") ?? "", finalUrl)) {
     const mime = contentType.split(";")[0]!.trim();
     if (!HTML_TYPES.includes(mime)) {
       await res.body?.cancel();
@@ -85,10 +89,12 @@ export async function fetchDocument(
   return { kind: "pdf", path, title, finalUrl };
 }
 
-function isPdfResponse(contentType: string, finalUrl: string): boolean {
+function isPdfResponse(contentType: string, disposition: string, finalUrl: string): boolean {
   if (contentType.includes("application/pdf")) return true;
   const generic = !contentType || contentType.includes("octet-stream") || contentType.includes("binary");
-  return generic && new URL(finalUrl).pathname.toLowerCase().endsWith(".pdf");
+  if (!generic) return false;
+  // Download endpoints (e.g. Google Drive's) only name the file in Content-Disposition.
+  return new URL(finalUrl).pathname.toLowerCase().endsWith(".pdf") || /filename\*?\s*=[^;]*\.pdf"?\s*(;|$)/i.test(disposition);
 }
 
 /** Enforces the byte limit while streaming and checks the PDF signature in the first KB. */

@@ -39,6 +39,14 @@ beforeAll(async () => {
           .writeHead(200, { "content-type": "application/pdf", "content-disposition": `attachment; filename="Report: Q3.pdf"` })
           .end(PDF);
         break;
+      case "/drive":
+        res
+          .writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="Agents Playbook.pdf"` })
+          .end(PDF);
+        break;
+      case "/blob":
+        res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": `attachment; filename="data.zip"` }).end(PDF);
+        break;
       case "/article":
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end("<html>café ☕</html>");
         break;
@@ -97,6 +105,11 @@ describe("fetchDocument", () => {
 
   it("prefers content-disposition and sanitizes it", async () => {
     expect(await fetchDocument(`${base}/download`, opts())).toMatchObject({ kind: "pdf", title: "Report- Q3" });
+  });
+
+  it("treats a generic download named *.pdf in content-disposition as a PDF", async () => {
+    expect(await fetchDocument(`${base}/drive`, opts())).toMatchObject({ kind: "pdf", title: "Agents Playbook" });
+    expect(await fetchDocument(`${base}/blob`, opts())).toMatchObject({ kind: "other", contentType: "application/octet-stream" });
   });
 
   it("reads and decodes HTML pages", async () => {
