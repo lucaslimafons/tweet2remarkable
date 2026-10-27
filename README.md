@@ -22,7 +22,7 @@ your phone's share sheet, and it lands on your reMarkable at the next sync. Sing
 
 | You share | You get on the reMarkable |
 |---|---|
-| A link to a PDF (or an arXiv `/abs/` page) | That PDF |
+| A link to a PDF (or an arXiv `/abs/` page, or a Google Drive PDF shared with "Anyone with the link") | That PDF |
 | A link to a web article | One EPUB of the article, with its images, without the site's menus, ads and scripts |
 | An X post linking to a PDF / arXiv paper | Just the PDF |
 | An X post with an X Article (its own or a quoted one) | One EPUB: the post, its images, then the full article |
@@ -153,6 +153,7 @@ docker run -d --restart unless-stopped \
 | `409 Conflict: terminated by other getUpdates request` in the logs | Two copies are running (e.g. `pnpm dev` and a hosted one). Stop one. |
 | `not paired with reMarkable (run pnpm rmapi:pair)` | Pair again with `pnpm rmapi:pair`, then update `RMAPI_CONFIG_B64` on your host. |
 | `couldn't find an article on this page` | Paywall, login wall or a JavaScript-only site. Send the PDF instead, if there is one. |
+| `Google Drive file not found or not shared …` | The file is private or deleted. In Drive: Share → General access → *Anyone with the link*. |
 | `couldn't read the post` | The post is private or deleted, or fxtwitter is temporarily down. |
 | `The file is N MB; Telegram only lets bots download files up to 20 MB` | Send a link to the file instead of the file. |
 | Uploads suddenly fail for everything | reMarkable may have changed its cloud; check for a newer [rmapi](https://github.com/ddvk/rmapi/releases) release. |
